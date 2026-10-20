@@ -1,0 +1,283 @@
+:root {
+  --night: #020817;
+  --edge: #1e2a40;
+  --yellow: #ffc51b;
+}
+.locket-app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 0, #111b31, transparent 38%), #000511;
+  color: #edf3ff;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.phone-screen {
+  width: 100%;
+  max-width: 420px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--night);
+}
+.status-bar {
+  height: 28px;
+  padding: 2px 15px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #95a3bb;
+  font-size: 12px;
+  font-weight: 700;
+}
+.status-bar > div {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 13px;
+}
+.wifi {
+  font-size: 19px;
+  transform: rotate(180deg);
+  line-height: 8px;
+}
+.friends-pill {
+  align-self: center;
+  height: 37px;
+  padding: 0 19px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #dbe4f3;
+  border: 1px solid #2d3a50;
+  border-radius: 999px;
+  background: #202d43;
+  font-size: 13px;
+}
+.friends-pill svg {
+  color: #9dacbe;
+}
+.friends-pill strong {
+  letter-spacing: -0.35px;
+}
+.camera-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 11px 0;
+}
+.viewfinder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--edge);
+  border-radius: 34px;
+  background: #111a2d;
+  box-shadow:
+    0 2px #ffffff09 inset,
+    0 15px 35px #0004;
+}
+.viewfinder.flash-on::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #fff7d8;
+  opacity: 0.12;
+  pointer-events: none;
+}
+.selected-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-hint {
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #73829b;
+}
+.camera-hint p {
+  margin: 0;
+  font-size: 13px;
+}
+.round-control {
+  z-index: 2;
+  position: absolute;
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #3d4b64;
+  color: #f5f7ff;
+}
+.round-control:active,
+.utility-button:active,
+.bottom-nav button:active {
+  transform: scale(0.92);
+}
+.flash {
+  top: 16px;
+  left: 16px;
+}
+.flash.active {
+  color: var(--yellow);
+}
+.zoom {
+  top: 16px;
+  right: 16px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.effects {
+  right: 16px;
+  bottom: 16px;
+}
+.camera-notice {
+  height: 14px;
+  margin: 7px 0 -3px;
+  text-align: center;
+  color: #8392ac;
+  font-size: 11px;
+}
+.capture-controls {
+  min-height: 101px;
+  padding: 20px 73px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.utility-button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  color: #a7b5ca;
+  background: transparent;
+}
+.shutter {
+  width: 72px;
+  height: 72px;
+  padding: 4px;
+  border: 4px solid var(--yellow);
+  border-radius: 50%;
+  background: transparent;
+}
+.shutter span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--night);
+}
+.send-photo {
+  display: grid;
+  place-items: center;
+  color: var(--yellow);
+}
+.send-photo svg { transform: translate(-1px, 1px); }
+.history-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto 50px;
+  padding: 0;
+  border: 0;
+  color: #9ba8bd;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+}
+.history-button svg {
+  color: #8795ae;
+}
+.bottom-nav {
+  height: 65px;
+  border-top: 1px solid #131d30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 8px 55px 10px;
+}
+.bottom-nav button {
+  position: relative;
+  width: 52px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 13px;
+  color: #8392ad;
+  background: transparent;
+}
+.home-button {
+  color: #071022 !important;
+  background: var(--yellow) !important;
+  box-shadow: 0 5px 12px #0004;
+}
+.home-outline {
+  font:
+    700 29px Arial,
+    sans-serif;
+  line-height: 1;
+}
+.message-button i {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  top: 4px;
+  right: 7px;
+  border-radius: 50%;
+  background: #ff4b57;
+}
+@media (min-width: 421px) {
+  .phone-screen {
+    min-height: 760px;
+    max-height: 860px;
+    border-inline: 1px solid #1a2435;
+    box-shadow: 0 0 70px #000a;
+  }
+  .locket-app {
+    padding: 24px;
+  }
+}
+@media (max-height: 720px) {
+  .history-button {
+    margin-bottom: 25px;
+  }
+  .capture-controls {
+    min-height: 92px;
+    padding-top: 12px;
+  }
+}
+.image-caption {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 29px;
+  width: min(62%, 210px);
+  min-height: 54px;
+  transform: translateX(-50%);
+  resize: none;
+  border: 0;
+  border-radius: 999px;
+  outline: 0;
+  padding: 15px 18px;
+  background: #fffdf0c9;
+  color: #192033;
+  text-align: center;
+  font: 700 14px/22px Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.image-caption::placeholder { color: #fff; }
