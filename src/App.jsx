@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import CustomizeStudioModal from './components/CustomizeStudioModal';
 import {
   Camera, ChevronDown, Grid2X2, ImagePlus, MessageCircle,
   RotateCw, Send, Sparkles, UsersRound, X, Zap,
@@ -12,6 +13,8 @@ export default function App() {
   const [flash, setFlash] = useState(false)
   const [lens, setLens] = useState('1x')
   const [notice, setNotice] = useState('')
+  const [isStudioOpen, setIsStudioOpen] = useState(false)
+  const [selectedCaption, setSelectedCaption] = useState('')
 
   const loadPhoto = (event) => {
     const file = event.target.files?.[0]
@@ -33,12 +36,15 @@ export default function App() {
             {photo ? (
               <>
                 <img src={photo} alt="Ảnh đã chọn" className="selected-photo" />
+                {selectedCaption && (<div className = "selected-caption-badge">
+                  {selectedCaption}
+                </div>)}
                 <textarea className="image-caption" autoFocus value={caption} onChange={(event) => setCaption(event.target.value)} maxLength="120" placeholder="Nhập tin nhắn..." aria-label="Nhập tin nhắn" rows="1" />
               </>
             ) : <div className="camera-hint"><Camera size={51} strokeWidth={1.6} /><p>Chạm để chụp ảnh</p></div>}
             <button className={`round-control flash ${flash ? 'active' : ''}`} onClick={() => setFlash(!flash)} aria-label="Bật tắt flash"><Zap size={20} /></button>
             <button className="round-control zoom" onClick={() => setLens(lens === '1x' ? '0.5x' : '1x')}>{lens}</button>
-            <button className="round-control effects" onClick={() => setNotice('Hiệu ứng sẽ sớm có mặt')} aria-label="Hiệu ứng"><Sparkles size={20} /></button>
+            <button className="round-control effects" onClick={() => setIsStudioOpen(true)} aria-label="Hiệu ứng"><Sparkles size={20} /></button>
           </section>
           {notice && <p className="camera-notice">{notice}</p>}
           <section className="capture-controls">
@@ -53,8 +59,11 @@ export default function App() {
           <button className="home-button" aria-label="Trang chủ"><span className="home-outline">⌂</span></button>
           <button className="message-button" aria-label="Tin nhắn"><MessageCircle size={24} /><i /></button>
         </nav>
+        <CustomizeStudioModal isOpen={isStudioOpen} onClose={() => setIsStudioOpen(false)} onSelectCaption={(label) => { setSelectedCaption(label) }} />
         <input ref={fileInput} type="file" accept="image/*" onChange={loadPhoto} hidden />
+      
       </div>
+
     </div>
   )
 }
