@@ -262,6 +262,81 @@
     padding-top: 12px;
   }
 }
+.selected-caption-badge {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 10;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+/* --- CUSTOMIZE STUDIO MODAL STYLES --- */
+.studio-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.studio-modal-container {
+  width: 100%;
+  max-width: 420px; /* Bằng với độ rộng phone-screen */
+  max-height: 75vh;
+  background: #111a2d;
+  border-top: 1px solid #1e2a40;
+  border-radius: 28px 28px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.25s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.studio-modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid #1e2a40;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0d1424;
+}
+
+.studio-close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #202d43;
+  border: 0;
+  color: #9ca3af;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.studio-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
 .image-caption {
   position: absolute;
   z-index: 3;
@@ -280,4 +355,4 @@
   text-align: center;
   font: 700 14px/22px Inter, ui-sans-serif, system-ui, sans-serif;
 }
-.image-caption::placeholder { color: #fff; }
+.image-caption::placeholder { color: #78715c; }
