@@ -160,6 +160,7 @@ export default function App() {
   const historyUrlsRef = useRef([])
   const originalPhotoRef = useRef(null)
   const accountRequestVersionRef = useRef(0)
+  const authActionVersionRef = useRef(0)
 
   const [facingMode, setFacingMode] = useState('user')
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -212,16 +213,17 @@ export default function App() {
       setLocketUser((current) => current?.uid === uid ? { ...current, ...data } : current)
       return data
     } catch (error) {
-      if (error.status === 401) setLocketUser(null)
+      if (error.requiresLogin) setLocketUser(null)
       throw error
     }
   }, [locketUser?.uid])
 
   useEffect(() => {
     let cancelled = false
+    const authVersion = authActionVersionRef.current
     getLocketSession()
-      .then(({ user }) => { if (!cancelled) setLocketUser(user) })
-      .catch((error) => { if (!cancelled) setNotice(error.message || 'Không kiểm tra được phiên Locket. Vui lòng thử đăng nhập lại.') })
+      .then(({ user }) => { if (!cancelled && authVersion === authActionVersionRef.current) setLocketUser(user) })
+      .catch((error) => { if (!cancelled && authVersion === authActionVersionRef.current) setNotice(error.message || 'Không kiểm tra được phiên Locket. Vui lòng thử đăng nhập lại.') })
       .finally(() => { if (!cancelled) setIsCheckingAccount(false) })
     return () => { cancelled = true }
   }, [])
@@ -254,7 +256,7 @@ export default function App() {
       } catch (error) {
         if (cancelled) return
         setDataStatus((current) => ({ ...current, [key]: { error: error.message } }))
-        if (error.status === 401) setLocketUser(null)
+        if (error.requiresLogin) setLocketUser(null)
       } finally {
         if (!cancelled && key === 'friends') setIsFriendsLoading(false)
       }
@@ -292,7 +294,7 @@ export default function App() {
     } catch (error) {
       if (version !== accountRequestVersionRef.current) return []
       setDataStatus((current) => ({ ...current, moments: { error: error.message } }))
-      if (error.status === 401) setLocketUser(null)
+      if (error.requiresLogin) setLocketUser(null)
       throw error
     }
   }, [accountUid])
@@ -311,7 +313,7 @@ export default function App() {
     } catch (error) {
       if (version !== accountRequestVersionRef.current) return []
       setDataStatus((current) => ({ ...current, memories: { ...current.memories, loading: false, error: error.message } }))
-      if (error.status === 401) setLocketUser(null)
+      if (error.requiresLogin) setLocketUser(null)
       throw error
     }
   }, [accountUid])
@@ -690,7 +692,7 @@ export default function App() {
       void Promise.allSettled([refreshLocketMoments(), refreshLocketMemories()])
       setNotice(`Đã đăng ${photo ? 'ảnh' : 'video'} lên Locket! Bạn có thể kiểm tra trong ứng dụng trên điện thoại.`)
     } catch (error) {
-      if (error.status === 401) {
+      if (error.requiresLogin) {
         setLocketUser(null)
         setIsAccountOpen(true)
       }
@@ -880,7 +882,7 @@ export default function App() {
         notice={notice}
         onDismissNotice={() => setNotice('')}
       />
-      <LocketAccountModal open={isAccountOpen} onClose={() => setIsAccountOpen(false)} user={locketUser} onUserChange={(user) => { setLocketUser(user); setNotice(user ? 'Đã kết nối Locket. Chọn ảnh và bấm gửi để đăng.' : 'Đã ngắt kết nối Locket.') }} />
+      <LocketAccountModal open={isAccountOpen} onClose={() => setIsAccountOpen(false)} user={locketUser} onUserChange={(user) => { authActionVersionRef.current += 1; setIsCheckingAccount(false); setLocketUser(user); setNotice(user ? 'Đã kết nối Locket. Chọn ảnh và bấm gửi để đăng.' : 'Đã ngắt kết nối Locket.') }} />
       <LocketProfileModal key={accountUid || 'guest'} open={isProfileOpen} user={locketUser} onClose={() => setIsProfileOpen(false)} onManage={() => setIsAccountOpen(true)} />
       <CustomizeStudioModal isOpen={isStudioOpen} onClose={() => setIsStudioOpen(false)} onSelectCaption={(label, tone) => { setSelectedCaption(label); setSelectedCaptionTone(tone || 'yellow'); setCaption('') }} />
       <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/x-m4v" onChange={loadPhoto} hidden />
