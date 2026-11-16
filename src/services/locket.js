@@ -1,6 +1,12 @@
-const API_URL = (import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || '').trim().replace(/\/$/, '')
+const configuredApiUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || '').trim().replace(/\/$/, '')
+const localBrowserNeedsBackend = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
+const API_URL = configuredApiUrl || (localBrowserNeedsBackend ? 'http://localhost:5000' : '')
+const productionApiMissing = !API_URL && !localBrowserNeedsBackend
 
 async function request(path, options = {}, timeoutMs = 150000) {
+  if (productionApiMissing) {
+    throw new Error('Chưa cấu hình VITE_API_URL trên bản Vercel. Hãy trỏ tới URL backend Locket công khai rồi deploy lại.')
+  }
   let response
   try {
     response = await fetch(`${API_URL}/api${path}`, {
@@ -16,7 +22,7 @@ async function request(path, options = {}, timeoutMs = 150000) {
   }
   const body = await response.json().catch(() => null)
   if (!response.ok || body?.success !== true) {
-    const error = new Error(body?.message || 'Máy chủ trả về dữ liệu không hợp lệ. Kiểm tra địa chỉ API.')
+    const error = new Error(body?.message || (body ? 'Máy chủ trả về dữ liệu không hợp lệ. Kiểm tra địa chỉ API.' : `Backend không trả JSON (HTTP ${response.status}). Hãy chạy backend tại cổng 5000.`))
     error.status = response.status
     throw error
   }
@@ -27,7 +33,7 @@ export const getLocketSession = () => request('/auth/session', {}, 15000)
 export const getLocketProfile = () => request('/auth/profile', {}, 45000)
 export const updateLocketProfile = (patch) => request('/auth/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }, 45000)
 export const getLocketFriends = () => request('/friends', {}, 45000)
-export const getLocketMoments = () => request('/social/moments', {}, 60000)
+export const getLocketMoments = () => request('/social/moments', {}, 180000)
 export const getLocketConversations = () => request('/social/conversations', {}, 60000)
 export const getLocketMessages = (conversationId) => request(`/social/conversations/${encodeURIComponent(conversationId)}/messages`, {}, 60000)
 export const loginLocket = (identifier, password) => request('/auth/login', {

@@ -64,7 +64,7 @@ function MobileMemories({ library, account, remoteMoments = [], unreadCount = 0,
   </section>
 }
 
-function MobileProfile({ account, friends = [], onBack, onAccount }) {
+function MobileProfile({ account, friends = [], onBack, onAccount, onCameraTheme }) {
   const displayName = account.user?.displayName || 'Sünk ak Hờn chjin to 🦅'
   const username = account.user?.username || 'jessicafam'
   const profileLink = `https://locket.cam/${username}`
@@ -92,6 +92,17 @@ function MobileProfile({ account, friends = [], onBack, onAccount }) {
       setSheet({ type: 'info', title: 'Đã tạo tiện ích', message: `“${name.trim()}” đã được lưu trên thiết bị này.` })
     }
   }
+  const applyAppIcon = (icon) => {
+    const link = document.querySelector('link[rel~="icon"]') || document.createElement('link')
+    link.rel = 'icon'
+    link.href = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="${icon === 'gold' ? '#f9c936' : '#ffffff'}"/><path d="M32 47C16 37 14 28 19 22c4-5 10-4 13 1 3-5 9-6 13-1 5 6 3 15-13 25Z" fill="${icon === 'gold' ? '#5b3f0b' : '#6f4b89'}"/></svg>`)}`
+    if (!link.parentNode) document.head.appendChild(link)
+    setSheet({ type: 'info', title: 'Đã đổi biểu tượng ứng dụng', message: icon === 'gold' ? 'Đã chọn biểu tượng Locket Gold.' : 'Đã chọn biểu tượng Locket sáng.' })
+  }
+  const applyCameraTheme = (theme) => {
+    onCameraTheme?.(theme)
+    setSheet({ type: 'info', title: 'Đã đổi chủ đề máy ảnh', message: theme === 'retro' ? 'Chủ đề Hoài niệm đã được áp dụng.' : 'Chủ đề Tự nhiên đã được áp dụng.' })
+  }
   const handleSetting = async (item) => {
     if (item.key === 'goldBadge') { setGoldBadge((value) => !value); return }
     if (item.key === 'notifications') { setNotifications((value) => !value); return }
@@ -113,8 +124,6 @@ function MobileProfile({ account, friends = [], onBack, onAccount }) {
       return
     }
     const messages = {
-      appIcon: 'Trình duyệt không thể thay đổi biểu tượng ứng dụng như iPhone. Bạn có thể thêm trang này ra màn hình chính.',
-      cameraTheme: 'Chủ đề máy ảnh đã sẵn sàng ở màn hình Chụp. Hãy quay lại để chọn hiệu ứng.',
       birthday: 'Tính năng sửa ngày sinh sẽ mở trong ứng dụng Locket để bảo vệ tài khoản.',
       name: 'Bạn có thể quản lý tên hiển thị trong tài khoản Locket.',
       avatar: 'Hãy dùng ứng dụng Locket để đổi ảnh đại diện an toàn.',
@@ -130,6 +139,8 @@ function MobileProfile({ account, friends = [], onBack, onAccount }) {
     }
     if (item.key === 'help') window.open('https://help.locketcamera.com', '_blank', 'noopener,noreferrer')
     else if (item.key === 'report') window.location.href = 'mailto:support@locket.camera'
+    else if (item.key === 'appIcon') setSheet({ type: 'appIcon' })
+    else if (item.key === 'cameraTheme') setSheet({ type: 'cameraTheme' })
     else setSheet({ type: 'info', title: item.label, message: messages[item.key] || 'Tính năng đã được chọn.' })
   }
   return <section className="mobile-page mobile-profile-page">
@@ -143,17 +154,21 @@ function MobileProfile({ account, friends = [], onBack, onAccount }) {
     <MobileSettingsBlock items={[{ icon: Gift, label: 'Đổi biểu tượng ứng dụng', key: 'appIcon' }, { icon: Camera, label: 'Chủ đề máy ảnh', key: 'cameraTheme' }, { icon: Gift, label: 'Huy hiệu Locket Gold', key: 'goldBadge', toggle: true, checked: goldBadge }]} onSelect={handleSetting} />
     <MobileSettingsBlock items={[{ icon: Bell, label: 'Thông báo', key: 'notifications', toggle: true, checked: notifications }, { icon: Cake, label: 'Sửa ngày sinh', key: 'birthday' }, { icon: Type, label: 'Sửa tên', key: 'name' }, { icon: UserRound, label: 'Chỉnh sửa ảnh đại diện', key: 'avatar' }, { icon: Phone, label: 'Số điện thoại', key: 'phone' }, { icon: Mail, label: 'Thêm địa chỉ email', key: 'email' }, { icon: LockKeyhole, label: 'Đổi mật khẩu', key: 'password' }]} onSelect={handleSetting} />
     <div className="mobile-settings-heading">Hỗ trợ</div><MobileSettingsBlock items={[{ icon: Info, label: 'Trung tâm trợ giúp', key: 'help' }, { icon: UsersRound, label: 'Trung tâm phụ huynh', key: 'parent' }, { icon: ShieldCheck, label: 'Trung tâm an toàn', key: 'safety' }, { icon: Info, label: 'Báo cáo sự cố', key: 'report' }, { icon: MessageSquarePlus, label: 'Gửi đề xuất', key: 'feedback' }, { icon: Sparkles, label: 'Thử trước các tính năng mới', key: 'beta' }]} onSelect={handleSetting} />
-    {sheet && <MobileProfileSheet sheet={sheet} profileLink={profileLink} displayName={displayName} friends={friends} groupMembers={groupMembers} onToggleMember={(uid) => setGroupMembers((current) => current.includes(uid) ? current.filter((id) => id !== uid) : [...current, uid])} onClose={() => setSheet(null)} onCopy={copyLink} />}
+    {sheet && <MobileProfileSheet sheet={sheet} profileLink={profileLink} displayName={displayName} friends={friends} groupMembers={groupMembers} onToggleMember={(uid) => setGroupMembers((current) => current.includes(uid) ? current.filter((id) => id !== uid) : [...current, uid])} onSelectIcon={applyAppIcon} onSelectTheme={applyCameraTheme} onClose={() => setSheet(null)} onCopy={copyLink} />}
   </section>
 }
 
-function MobileProfileSheet({ sheet, profileLink, displayName, friends, groupMembers, onToggleMember, onClose, onCopy }) {
+function MobileProfileSheet({ sheet, profileLink, displayName, friends, groupMembers, onToggleMember, onSelectIcon, onSelectTheme, onClose, onCopy }) {
   if (sheet.type === 'qr') {
     const qr = `https://quickchart.io/qr?size=260&text=${encodeURIComponent(profileLink)}`
     return <div className="mobile-profile-sheet-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="mobile-profile-sheet"><div className="mobile-sheet-handle" /><header><strong>Mã QR hồ sơ</strong><button type="button" onClick={onClose} aria-label="Đóng"><X size={22} /></button></header><img className="mobile-qr-image" src={qr} alt={`Mã QR của ${displayName}`} /><p>Quét mã để mở hồ sơ Locket của bạn.</p><button type="button" className="mobile-sheet-primary" onClick={onCopy}><Link size={17} /> Sao chép liên kết</button></div></div>
   }
   if (sheet.type === 'friends' || sheet.type === 'editGroup') {
     return <div className="mobile-profile-sheet-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="mobile-profile-sheet"><div className="mobile-sheet-handle" /><header><strong>{sheet.type === 'friends' ? 'Bạn bè Locket' : 'Chọn người trong tiện ích'}</strong><button type="button" onClick={onClose} aria-label="Đóng"><X size={22} /></button></header><div className="mobile-friend-list">{friends.length ? friends.map((friend) => <button type="button" className="mobile-friend-row" key={friend.uid} onClick={() => sheet.type === 'editGroup' && onToggleMember(friend.uid)}><span className="mobile-message-avatar">{friend.avatarUrl ? <img src={friend.avatarUrl} alt="" /> : (friend.displayName || '?').slice(0, 1).toUpperCase()}</span><span><strong>{friend.displayName}</strong><small>{friend.username ? `@${friend.username}` : friend.uid}</small></span>{sheet.type === 'editGroup' && <span className={`mobile-check-circle ${groupMembers.includes(friend.uid) ? 'selected' : ''}`}>{groupMembers.includes(friend.uid) ? '✓' : ''}</span>}</button>) : <div className="mobile-messages-empty"><UsersRound size={30} /><span>Chưa tải được danh sách bạn bè.</span></div>}</div>{sheet.type === 'editGroup' && <button type="button" className="mobile-sheet-primary" onClick={onClose}>Lưu tiện ích</button>}</div></div>
+  }
+  if (sheet.type === 'appIcon' || sheet.type === 'cameraTheme') {
+    const iconSheet = sheet.type === 'appIcon'
+    return <div className="mobile-profile-sheet-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="mobile-profile-sheet"><div className="mobile-sheet-handle" /><header><strong>{iconSheet ? 'Đổi biểu tượng ứng dụng' : 'Chủ đề máy ảnh'}</strong><button type="button" onClick={onClose} aria-label="Đóng"><X size={22} /></button></header><div className="mobile-choice-grid">{(iconSheet ? [{ id: 'gold', title: 'Locket Gold', icon: '♥' }, { id: 'light', title: 'Locket sáng', icon: '♡' }] : [{ id: 'natural', title: 'Tự nhiên', icon: '☀' }, { id: 'retro', title: 'Hoài niệm', icon: '◌' }]).map((choice) => <button type="button" key={choice.id} onClick={() => iconSheet ? onSelectIcon(choice.id) : onSelectTheme(choice.id)}><span>{choice.icon}</span><strong>{choice.title}</strong></button>)}</div></div></div>
   }
   const gold = sheet.type === 'gold'
   return <div className="mobile-profile-sheet-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="mobile-profile-sheet"><div className="mobile-sheet-handle" /><header><strong>{sheet.title || (gold ? 'Locket Gold' : 'Thông báo')}</strong><button type="button" onClick={onClose} aria-label="Đóng"><X size={22} /></button></header><div className="mobile-sheet-copy">{gold ? <><div className="mobile-sheet-gold-icon">♥</div><h3>Những khoảnh khắc nổi bật hơn</h3><p>Locket Gold mở thêm chủ đề máy ảnh, biểu tượng ứng dụng và huy hiệu hồ sơ.</p></> : <p>{sheet.message}</p>}</div><button type="button" className="mobile-sheet-primary" onClick={onClose}>{gold ? 'Đã hiểu' : 'Đóng'}</button></div></div>
@@ -195,7 +210,7 @@ function MobileHistory({ account, remoteMoments = [], library, onRefresh, onBack
     <div className="mobile-statusbar"><span>1:20</span><span className="mobile-island"><i /></span><span className="mobile-status-icons">▮▮ ◔ <b>64</b></span></div>
     <header className="mobile-history-header"><button type="button" className="mobile-history-profile" onClick={onProfile}><MobileAvatar account={account} /></button><select value={filter} onChange={(event) => setFilter(event.target.value)} aria-label="Chọn lịch sử"><option value="all">Mọi người</option><option value="mine">Của tôi</option></select><button type="button" className="mobile-history-menu" onClick={onBack} aria-label="Quay lại"><ChevronRight size={23} /></button></header>
     <div className="mobile-history-title"><span>i love Locket Dio</span><button type="button" onClick={() => { setFilter('all'); if (onRefresh) { setLoading(true); Promise.resolve(onRefresh()).catch(() => {}).finally(() => setLoading(false)) } }} disabled={loading}>{loading ? 'Đang đồng bộ…' : 'Làm mới'}</button></div>
-    <div className="mobile-history-feed">{items.length ? items.slice(0, 42).map((item, index) => <button type="button" className="mobile-history-tile" key={item.momentId || item.id || `history-${index}`} onClick={() => setViewer(item)}>{videoUrl(item) ? <video src={videoUrl(item)} poster={mediaUrl(item) || undefined} muted playsInline preload="metadata" /> : <img src={mediaUrl(item)} alt={item.caption || 'Khoảnh khắc Locket'} loading="lazy" />}{item.caption && <span>{item.caption}</span>}</button>) : <div className="mobile-history-empty"><Images size={32} /><strong>{loading ? 'Đang tải lịch sử Locket…' : 'Chưa có khoảnh khắc'}</strong><span>{loading ? 'Đang đồng bộ ảnh của bạn bè và của bạn.' : 'Hãy đăng ảnh trên Locket để lịch sử xuất hiện ở đây.'}</span></div>}</div>
+    <div className="mobile-history-feed">{items.length ? items.map((item, index) => <button type="button" className="mobile-history-tile" key={item.momentId || item.id || `history-${index}`} onClick={() => setViewer(item)}>{videoUrl(item) ? <video src={videoUrl(item)} poster={mediaUrl(item) || undefined} muted playsInline preload="metadata" /> : <img src={mediaUrl(item)} alt={item.caption || 'Khoảnh khắc Locket'} loading="lazy" />}{item.caption && <span>{item.caption}</span>}</button>) : <div className="mobile-history-empty"><Images size={32} /><strong>{loading ? 'Đang tải lịch sử Locket…' : 'Chưa có khoảnh khắc'}</strong><span>{loading ? 'Đang đồng bộ ảnh của bạn bè và của bạn.' : 'Hãy đăng ảnh trên Locket để lịch sử xuất hiện ở đây.'}</span></div>}</div>
     <nav className="mobile-bottom-nav" aria-label="Điều hướng Locket"><button type="button" onClick={onMemories}><Grid2X2 size={24} /><span>Kỷ niệm</span></button><button type="button" className="active" onClick={onBack}><Home size={24} /><span>Chụp</span></button><button type="button" onClick={onMessages}><MessageCircle size={24} /><span>Tin nhắn</span></button></nav>
     {viewer && <div className="mobile-history-viewer" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setViewer(null) }}><div className="mobile-history-viewer-card"><button type="button" onClick={() => setViewer(null)} aria-label="Đóng"><X size={22} /></button>{videoUrl(viewer) ? <video src={videoUrl(viewer)} poster={mediaUrl(viewer) || undefined} controls autoPlay playsInline /> : <img src={mediaUrl(viewer)} alt={viewer.caption || ''} />}{viewer.caption && <p>{viewer.caption}</p>}</div></div>}
   </section>
@@ -229,7 +244,7 @@ function MobileShell({ library, account, capture, composer, audience, remoteMome
   const openMessages = () => { setSelectedConversation(null); setView('messages') }
   const openConversation = (conversation) => { setSelectedConversation(conversation); setView('conversation'); onLoadConversationMessages?.(conversation.conversationId) }
   const unreadCount = conversations.reduce((total, item) => total + Number(item.unreadCount || 0), 0)
-  return <div className="mobile-locket-shell">{view === 'memories' ? <MobileMemories library={library} account={account} remoteMoments={remoteMoments} unreadCount={unreadCount} onProfile={() => setView('profile')} onOpenComposer={openComposer} onCamera={() => setView('capture')} onMessages={openMessages} /> : view === 'history' ? <MobileHistory account={account} remoteMoments={remoteMoments} library={library} onRefresh={onRefreshMoments} onBack={() => setView('capture')} onMemories={() => setView('memories')} onMessages={openMessages} onProfile={() => setView('profile')} /> : view === 'profile' ? <MobileProfile account={account} friends={friends} onBack={() => setView('capture')} onAccount={account.onOpen} /> : view === 'messages' ? <MobileMessages account={account} conversations={conversations} onBack={() => setView('memories')} onProfile={() => setView('profile')} onOpenConversation={openConversation} /> : view === 'conversation' ? <MobileConversation account={account} conversation={selectedConversation} messages={conversationMessages?.[selectedConversation?.conversationId] || []} onBack={() => setView('messages')} /> : <MobileCapture capture={capture} composer={composer} audience={audience} account={account} library={library} remoteMoments={remoteMoments} onBack={() => setView('memories')} onMemories={() => setView('memories')} onHistory={() => setView('history')} onMessages={openMessages} onProfile={() => setView('profile')} />}</div>
+  return <div className="mobile-locket-shell">{view === 'memories' ? <MobileMemories library={library} account={account} remoteMoments={remoteMoments} unreadCount={unreadCount} onProfile={() => setView('profile')} onOpenComposer={openComposer} onCamera={() => setView('capture')} onMessages={openMessages} /> : view === 'history' ? <MobileHistory account={account} remoteMoments={remoteMoments} library={library} onRefresh={onRefreshMoments} onBack={() => setView('capture')} onMemories={() => setView('memories')} onMessages={openMessages} onProfile={() => setView('profile')} /> : view === 'profile' ? <MobileProfile account={account} friends={friends} onBack={() => setView('capture')} onAccount={account.onOpen} onCameraTheme={(theme) => capture.onChangeLook?.(theme === 'retro')} /> : view === 'messages' ? <MobileMessages account={account} conversations={conversations} onBack={() => setView('memories')} onProfile={() => setView('profile')} onOpenConversation={openConversation} /> : view === 'conversation' ? <MobileConversation account={account} conversation={selectedConversation} messages={conversationMessages?.[selectedConversation?.conversationId] || []} onBack={() => setView('messages')} /> : <MobileCapture capture={capture} composer={composer} audience={audience} account={account} library={library} remoteMoments={remoteMoments} onBack={() => setView('memories')} onMemories={() => setView('memories')} onHistory={() => setView('history')} onMessages={openMessages} onProfile={() => setView('profile')} />}</div>
 }
 
 function HistoryModal({ library, sending }) {

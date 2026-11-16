@@ -575,6 +575,8 @@
   .mobile-settings-icon { display: grid; place-items: center; width: 38px; color: #fff; }
   .mobile-toggle { position: relative; width: 58px; height: 32px; border-radius: 18px; background: #8d8991; }
   .mobile-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: white; }
+  .mobile-toggle.is-on { background: #d77be9; }
+  .mobile-toggle.is-on::after { left: 29px; }
   .mobile-capture-page { background: #09080d; }
   .mobile-capture-preview { position: relative; width: 100%; aspect-ratio: 1; margin: 16px 0 22px; overflow: hidden; border-radius: 30px; background: #1f1d22; }
   .mobile-capture-preview > img, .mobile-capture-preview > video { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -705,6 +707,10 @@
   .mobile-sheet-copy { padding: 5px 4px 12px; text-align: center; }
   .mobile-sheet-copy h3 { margin: 6px 0 8px; font-size: 21px; }
   .mobile-sheet-gold-icon { display: grid; place-items: center; width: 70px; height: 70px; margin: 0 auto; border: 3px solid #eac33a; border-radius: 22px; background: #53452e; color: #ffd94e; font-size: 34px; }
+  .mobile-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 10px; }
+  .mobile-choice-grid button { display: flex; flex-direction: column; align-items: center; gap: 10px; min-height: 132px; padding: 18px 10px; border: 1px solid #ffffff1a; border-radius: 20px; background: #2d2831; color: #f8f3f9; }
+  .mobile-choice-grid button:hover { border-color: #e07cf1; background: #3b3042; }
+  .mobile-choice-grid button > span { display: grid; place-items: center; width: 62px; height: 62px; border: 3px solid #e4b83d; border-radius: 20px; background: #4b414d; color: #ffd548; font-size: 32px; }
   .mobile-history-page { padding-left: 6px; padding-right: 6px; background: #08070b; }
   .mobile-history-header { display: grid; grid-template-columns: 45px 1fr 45px; align-items: center; gap: 10px; padding: 4px 0 10px; }
   .mobile-history-profile, .mobile-history-menu { display: grid; place-items: center; width: 43px; height: 43px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #f4f1f5; }
