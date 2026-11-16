@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CustomizeStudioModal from './components/CustomizeStudioModal'
-import {
-  Camera, CameraOff, ChevronDown, Grid2X2, ImagePlus, MessageCircle,
-  RotateCw, Send, Sparkles, UsersRound, X, Zap, Trash2,
-} from 'lucide-react'
-import './App.css'
+import LocketAccountModal from './components/LocketAccountModal'
+import LocketProfileModal from './components/LocketProfileModal'
+import StudioLayout from './components/StudioLayout'
+import { getLocketConversations, getLocketFriends, getLocketMessages, getLocketMoments, getLocketSession, postLocketPhoto, postLocketVideo, updateLocketProfile } from './services/locket'
+import './studio.css'
 
 const DB_NAME = 'locket-local-db'
 const DB_VERSION = 1
 const STORE_NAME = 'history'
-const MAX_RECORDING_MS = 5000
+const MAX_RECORDING_MS = 30000
+const PHOTO_EFFECTS = Object.freeze({
+  natural: { label: 'Tự nhiên', filter: 'none' },
+  vivid: { label: 'Rực rỡ', filter: 'saturate(1.35) contrast(1.08)' },
+  warm: { label: 'Ấm áp', filter: 'sepia(.18) saturate(1.2) brightness(1.03)' },
+  cool: { label: 'Mát lạnh', filter: 'hue-rotate(12deg) saturate(1.1) contrast(1.04)' },
+  noir: { label: 'Đen trắng', filter: 'grayscale(1) contrast(1.12)' },
+  retro: { label: 'Hoài niệm', filter: 'sepia(.38) saturate(1.15) contrast(1.08)' },
+  dreamy: { label: 'Mơ màng', filter: 'brightness(1.08) saturate(.9) contrast(.9)' },
+})
 
 function openHistoryDb() {
   return new Promise((resolve, reject) => {
@@ -73,6 +82,64 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime })
 }
 
+function createVideoThumbnail(blob) {
+  return new Promise((resolve, reject) => {
+    const sourceUrl = URL.createObjectURL(blob)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    video.src = sourceUrl
+    const cleanup = () => {
+      URL.revokeObjectURL(sourceUrl)
+      video.remove()
+    }
+    const fail = (error) => { cleanup(); reject(error instanceof Error ? error : new Error('Không tạo được ảnh xem trước cho video.')) }
+    video.addEventListener('error', () => fail(new Error('Video không đọc được trên trình duyệt này.')), { once: true })
+    video.addEventListener('loadedmetadata', () => {
+      video.currentTime = Math.min(0.1, Math.max(0, (video.duration || 1) / 2))
+    }, { once: true })
+    video.addEventListener('seeked', () => {
+      try {
+        const canvas = document.createElement('canvas')
+        const size = 1020
+        canvas.width = size
+        canvas.height = size
+        const context = canvas.getContext('2d')
+        if (!context || !video.videoWidth || !video.videoHeight) throw new Error('Video chưa sẵn sàng.')
+        const scale = Math.max(size / video.videoWidth, size / video.videoHeight)
+        const width = video.videoWidth * scale
+        const height = video.videoHeight * scale
+        context.drawImage(video, (size - width) / 2, (size - height) / 2, width, height)
+        canvas.toBlob((thumbnail) => {
+          if (!thumbnail) { fail(new Error('Không tạo được ảnh xem trước cho video.')); return }
+          cleanup()
+          resolve(thumbnail)
+        }, 'image/jpeg', 0.9)
+      } catch (error) { fail(error) }
+    }, { once: true })
+  })
+}
+
+function renderPhotoEffect(dataUrl, effectId) {
+  if (!dataUrl || effectId === 'natural' || !PHOTO_EFFECTS[effectId]) return Promise.resolve(dataUrl)
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth || image.width
+      canvas.height = image.naturalHeight || image.height
+      const context = canvas.getContext('2d')
+      if (!context) { reject(new Error('Không thể tạo hiệu ứng ảnh.')); return }
+      context.filter = PHOTO_EFFECTS[effectId].filter
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.92))
+    }
+    image.onerror = () => reject(new Error('Không thể đọc ảnh để áp dụng hiệu ứng.'))
+    image.src = dataUrl
+  })
+}
+
 function formatTime(date = new Date()) {
   return `${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${date.toLocaleDateString()}`
 }
@@ -80,6 +147,7 @@ function formatTime(date = new Date()) {
 export default function App() {
   const fileInput = useRef(null)
   const videoRef = useRef(null)
+  const mobileVideoRef = useRef(null)
   const streamRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const recordedChunksRef = useRef([])
@@ -89,18 +157,22 @@ export default function App() {
   const canvasRef = useRef(null)
   const pressStartedRecordingRef = useRef(false)
   const historyUrlsRef = useRef([])
+  const originalPhotoRef = useRef(null)
 
   const [facingMode, setFacingMode] = useState('user')
   const [zoomLevel, setZoomLevel] = useState(1)
   const [photo, setPhoto] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
   const [videoBlob, setVideoBlob] = useState(null)
+  const [videoThumbnail, setVideoThumbnail] = useState(null)
   const [caption, setCaption] = useState('')
   const [flash, setFlash] = useState(false)
   const [lens, setLens] = useState('1x')
   const [isRetroMode, setIsRetroMode] = useState(false)
   const [isStudioOpen, setIsStudioOpen] = useState(false)
   const [selectedCaption, setSelectedCaption] = useState('')
+  const [selectedCaptionTone, setSelectedCaptionTone] = useState('yellow')
+  const [photoEffect, setPhotoEffect] = useState('natural')
   const [notice, setNotice] = useState('')
   const [focusPos, setFocusPos] = useState(null)
   const [isRecording, setIsRecording] = useState(false)
@@ -109,6 +181,81 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [isCameraReady, setIsCameraReady] = useState(false)
+  const [locketUser, setLocketUser] = useState(null)
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isCheckingAccount, setIsCheckingAccount] = useState(true)
+  const [audienceMode, setAudienceMode] = useState('all')
+  const [excludedFriendIds, setExcludedFriendIds] = useState([])
+  const [friends, setFriends] = useState([])
+  const [remoteMoments, setRemoteMoments] = useState([])
+  const [conversations, setConversations] = useState([])
+  const [conversationMessages, setConversationMessages] = useState({})
+  const [isFriendsLoading, setIsFriendsLoading] = useState(false)
+  const [isAudienceOpen, setIsAudienceOpen] = useState(false)
+
+  const openAccount = () => {
+    if (locketUser) setIsProfileOpen(true)
+    else setIsAccountOpen(true)
+  }
+
+  const handleProfileUpdate = useCallback(async (patch) => {
+    const { data } = await updateLocketProfile(patch)
+    setLocketUser((current) => ({ ...current, ...(data || {}) }))
+    return data
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getLocketSession()
+      .then(({ user }) => { if (!cancelled) setLocketUser(user) })
+      .catch(() => { /* The account form reports connection errors on login. */ })
+      .finally(() => { if (!cancelled) setIsCheckingAccount(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!locketUser) {
+      setFriends([])
+      setRemoteMoments([])
+      setConversations([])
+      setConversationMessages({})
+      setExcludedFriendIds([])
+      setIsFriendsLoading(false)
+      return undefined
+    }
+    setIsFriendsLoading(true)
+    Promise.allSettled([getLocketFriends(), getLocketMoments(), getLocketConversations()])
+      .then(([friendsResult, momentsResult, conversationsResult]) => {
+        if (cancelled) return
+        setFriends(friendsResult.status === 'fulfilled' && Array.isArray(friendsResult.value.data) ? friendsResult.value.data : [])
+        setRemoteMoments(momentsResult.status === 'fulfilled' && Array.isArray(momentsResult.value.data) ? momentsResult.value.data : [])
+        setConversations(conversationsResult.status === 'fulfilled' && Array.isArray(conversationsResult.value.data) ? conversationsResult.value.data : [])
+      })
+      .finally(() => { if (!cancelled) setIsFriendsLoading(false) })
+    return () => { cancelled = true }
+  }, [locketUser])
+
+  const loadConversationMessages = useCallback(async (conversationId) => {
+    if (!conversationId || conversationMessages[conversationId]) return conversationMessages[conversationId] || []
+    try {
+      const { data } = await getLocketMessages(conversationId)
+      setConversationMessages((current) => ({ ...current, [conversationId]: Array.isArray(data) ? data : [] }))
+      return data
+    } catch (error) {
+      setNotice(error.message || 'Không tải được tin nhắn Locket.')
+      return []
+    }
+  }, [conversationMessages])
+
+  const refreshLocketMoments = useCallback(async () => {
+    if (!locketUser) return []
+    const { data } = await getLocketMoments()
+    const next = Array.isArray(data) ? data : []
+    setRemoteMoments(next)
+    return next
+  }, [locketUser])
 
   // Load persisted media from IndexedDB. Object URLs are recreated on each page load.
   useEffect(() => {
@@ -133,13 +280,21 @@ export default function App() {
   // Request camera safely and stop any late-arriving stream after cleanup.
   useEffect(() => {
     let cancelled = false
+    const clearVideoElement = (element) => {
+      if (!element) return
+      try { element.pause() } catch { /* already stopped */ }
+      element.srcObject = null
+      element.removeAttribute('src')
+      try { element.load() } catch { /* media element may already be detached */ }
+    }
     const stopCurrentStream = () => {
       setIsCameraReady(false)
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop())
         streamRef.current = null
       }
-      if (videoRef.current) videoRef.current.srcObject = null
+      clearVideoElement(videoRef.current)
+      clearVideoElement(mobileVideoRef.current)
     }
 
     if (photo || videoUrl) {
@@ -163,12 +318,18 @@ export default function App() {
       streamRef.current = stream
       setIsCameraReady(true)
       if (videoRef.current) {
+        videoRef.current.removeAttribute('src')
         videoRef.current.srcObject = stream
         try {
           await videoRef.current.play()
         } catch (error) {
           console.warn('Trình duyệt chưa phát được camera tự động:', error)
         }
+      }
+      if (mobileVideoRef.current) {
+        mobileVideoRef.current.removeAttribute('src')
+        mobileVideoRef.current.srcObject = stream
+        try { await mobileVideoRef.current.play() } catch (error) { console.warn('Mobile camera chÆ°a phÃ¡t Ä‘Æ°á»£c tá»± Ä‘á»™ng:', error) }
       }
     }).catch((error) => {
       console.error('Không thể truy cập camera:', error)
@@ -320,9 +481,12 @@ export default function App() {
 
       const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
       const blob = dataUrlToBlob(dataUrl)
+      originalPhotoRef.current = dataUrl
+      setPhotoEffect('natural')
       setPhoto(dataUrl)
       setVideoUrl(null)
       setVideoBlob(null)
+      setVideoThumbnail(null)
       setNotice(isRetroMode ? '✨ Đã chụp ảnh Vintage!' : '📸 Đã chụp ảnh!')
       await addToHistory('photo', blob)
     } catch (error) {
@@ -353,7 +517,7 @@ export default function App() {
     const options = mimeType ? { mimeType } : undefined
     try {
       recordedChunksRef.current = []
-      const recorder = new MediaRecorder(stream, options)
+      const recorder = new MediaRecorder(stream, { ...(options || {}), videoBitsPerSecond: 2000000, audioBitsPerSecond: 96000 })
       mediaRecorderRef.current = recorder
       recorder.ondataavailable = (event) => {
         if (event.data?.size) recordedChunksRef.current.push(event.data)
@@ -378,6 +542,7 @@ export default function App() {
           return url
         })
         setVideoBlob(blob)
+        try { setVideoThumbnail(await createVideoThumbnail(blob)) } catch (error) { console.warn('Không tạo được thumbnail video:', error); setVideoThumbnail(null) }
         setPhoto(null)
         setNotice('🎥 Đã quay xong video ngắn!')
         setIsRecording(false)
@@ -404,6 +569,7 @@ export default function App() {
   const handleShutterPointerDown = (event) => {
     if (event.button !== undefined && event.button !== 0) return
     event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
     pressStartedRecordingRef.current = false
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
     holdTimerRef.current = setTimeout(() => {
@@ -433,43 +599,43 @@ export default function App() {
 
   const handleSendPhoto = async () => {
     if ((!photo && !videoBlob) || isSending) return
-    const apiBaseUrl = import.meta.env.VITE_API_URL?.trim()
-    if (!apiBaseUrl) {
-      setNotice('Thiếu VITE_API_URL. Hãy cấu hình địa chỉ API trong file .env.')
+    if (!photo && !videoThumbnail) {
+      setNotice('Video chưa tạo được ảnh xem trước. Hãy chọn lại video khác.')
+      return
+    }
+    if (isCheckingAccount) {
+      setNotice('Đang kiểm tra kết nối tài khoản Locket. Vui lòng đợi một chút.')
+      return
+    }
+    if (!locketUser) {
+      setIsAccountOpen(true)
+      setNotice('Hãy kết nối tài khoản Locket rồi bấm gửi lại ảnh.')
       return
     }
     setIsSending(true)
     try {
-      setNotice('🚀 Đang gửi khoảnh khắc...')
-      const blob = photo ? dataUrlToBlob(photo) : videoBlob
-      const formData = new FormData()
-      if (photo) {
-        formData.append('image', blob, 'locket-photo.jpg')
-      } else {
-        const extension = blob.type.includes('mp4') ? 'mp4' : 'webm'
-        formData.append('video', blob, `locket-video.${extension}`)
-      }
-      formData.append('caption', caption.trim() || selectedCaption)
-      const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/posts`, {
-        method: 'POST',
-        body: formData,
-      })
-      if (!response.ok) {
-        const detail = await response.text().catch(() => '')
-        throw new Error(`API trả về ${response.status}${detail ? `: ${detail.slice(0, 160)}` : ''}`)
-      }
-      setNotice('🎉 Đã gửi thành công đến bạn bè!')
-      setTimeout(() => {
-        setPhoto(null)
-        setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return null })
-        setVideoBlob(null)
-        setCaption('')
-        setSelectedCaption('')
-        setNotice('')
-      }, 1200)
+      const audience = { mode: audienceMode, excludedIds: excludedFriendIds }
+      const audienceLabel = audienceMode === 'private' ? 'chỉ mình bạn' : audienceMode === 'exclude' ? `tất cả trừ ${excludedFriendIds.length} người` : 'tất cả bạn bè'
+      setNotice(`Đang đăng ${photo ? 'ảnh' : 'video'} lên Locket và gửi tới ${audienceLabel}…`)
+      if (photo) await postLocketPhoto(dataUrlToBlob(photo), caption.trim() || selectedCaption, audience, selectedCaptionTone)
+      else await postLocketVideo(videoBlob, videoThumbnail, caption.trim() || selectedCaption, audience, selectedCaptionTone)
+      setPhoto(null)
+      originalPhotoRef.current = null
+      setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return null })
+      setVideoBlob(null)
+      setVideoThumbnail(null)
+      setPhotoEffect('natural')
+      setCaption('')
+      setSelectedCaption('')
+      setSelectedCaptionTone('yellow')
+      getLocketMoments().then(({ data }) => { if (Array.isArray(data)) setRemoteMoments(data) }).catch(() => {})
+      setNotice(`Đã đăng ${photo ? 'ảnh' : 'video'} lên Locket! Bạn có thể kiểm tra trong ứng dụng trên điện thoại.`)
     } catch (error) {
-      console.error('Lỗi khi gửi khoảnh khắc:', error)
-      setNotice('⚠️ Gửi thất bại. Kiểm tra API và thử lại.')
+      if (error.status === 401) {
+        setLocketUser(null)
+        setIsAccountOpen(true)
+      }
+      setNotice(error.message || 'Gửi thất bại. Vui lòng thử lại.')
     } finally {
       setIsSending(false)
     }
@@ -479,35 +645,115 @@ export default function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setNotice('Vui lòng chọn một tệp ảnh hợp lệ.')
+    const isVideo = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v'].includes(file.type)
+    const isImage = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+    if (!isImage && !isVideo) {
+      setNotice('Vui lòng chọn ảnh JPEG, PNG, WebP hoặc video MP4/MOV/WebM.')
+      return
+    }
+    const maxSize = isVideo ? 10 * 1024 * 1024 : 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      setNotice(`${isVideo ? 'Video' : 'Ảnh'} không được vượt quá ${isVideo ? '10' : '5'} MB.`)
       return
     }
     try {
+      if (isVideo) {
+        const thumbnail = await createVideoThumbnail(file)
+        const url = URL.createObjectURL(file)
+        originalPhotoRef.current = null
+        setPhotoEffect('natural')
+        setPhoto(null)
+        setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return url })
+        setVideoBlob(file)
+        setVideoThumbnail(thumbnail)
+        setNotice('🎞️ Đã chọn video từ album, sẵn sàng chia sẻ.')
+        await addToHistory('video', file)
+        return
+      }
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result)
         reader.onerror = () => reject(reader.error)
         reader.readAsDataURL(file)
       })
+      originalPhotoRef.current = dataUrl
+      setPhotoEffect('natural')
       setPhoto(dataUrl)
       setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return null })
       setVideoBlob(null)
+      setVideoThumbnail(null)
       setNotice('📁 Đã tải ảnh lên, sẵn sàng chia sẻ.')
       await addToHistory('photo', file)
     } catch (error) {
-      console.error('Không thể đọc ảnh:', error)
-      setNotice('Không thể mở ảnh này. Vui lòng chọn tệp khác.')
+      console.error('Không thể đọc nội dung album:', error)
+      setNotice('Không thể mở nội dung này. Vui lòng chọn tệp khác.')
     }
   }
 
   const resetCapture = () => {
+    originalPhotoRef.current = null
+    setPhotoEffect('natural')
     setPhoto(null)
     setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return null })
     setVideoBlob(null)
+    setVideoThumbnail(null)
     setCaption('')
     setSelectedCaption('')
+    setSelectedCaptionTone('yellow')
     setNotice('')
+  }
+
+  const changePhotoEffect = async (effectId) => {
+    if (!PHOTO_EFFECTS[effectId]) return
+    setPhotoEffect(effectId)
+    if (!originalPhotoRef.current) return
+    try {
+      setPhoto(await renderPhotoEffect(originalPhotoRef.current, effectId))
+    } catch (error) {
+      setPhotoEffect('natural')
+      setNotice(error.message || 'Không thể áp dụng hiệu ứng ảnh.')
+    }
+  }
+
+  const reuseHistoryRecord = async (item) => {
+    if (isSending || !['photo', 'video'].includes(item.type)) return
+    try {
+      if (item.type === 'video') {
+        const thumbnail = await createVideoThumbnail(item.blob)
+        const url = URL.createObjectURL(item.blob)
+        originalPhotoRef.current = null
+        setPhotoEffect('natural')
+        setPhoto(null)
+        setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return url })
+        setVideoBlob(item.blob)
+        setVideoThumbnail(thumbnail)
+        setCaption(item.caption || '')
+        setSelectedCaption('')
+        setSelectedCaptionTone('yellow')
+        setIsHistoryOpen(false)
+        setNotice('Đã chọn lại video. Thêm vài lời và gửi đến bạn bè nhé.')
+        return
+      }
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(item.blob)
+      })
+      originalPhotoRef.current = dataUrl
+      setPhotoEffect('natural')
+      setPhoto(dataUrl)
+      setVideoUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return null })
+      setVideoBlob(null)
+      setVideoThumbnail(null)
+      setCaption(item.caption || '')
+      setSelectedCaption('')
+      setSelectedCaptionTone('yellow')
+      setIsHistoryOpen(false)
+      setNotice('Đã chọn lại ảnh. Thêm vài lời và gửi đến bạn bè nhé.')
+    } catch {
+      setNotice('Không thể mở lại nội dung này. Hãy chọn lại từ album.')
+    }
   }
 
   const clearHistory = async () => {
@@ -524,106 +770,63 @@ export default function App() {
   }
 
   return (
-    <div className="locket-app">
-      <div className="phone-screen">
-        <div className="status-bar">
-          <span>9:41</span>
-          <div className="status-icons"><span>5G</span><span>🔋</span></div>
-        </div>
-
-        <header className="friends-pill"><UsersRound size={16} /><strong>96 người bạn</strong></header>
-
-        <main className="camera-area">
-          <section className={`viewfinder ${flash ? 'flash-on' : ''}`} onClick={handleTapToFocus}>
-            <button className={`round-control retro-toggle ${isRetroMode ? 'active' : ''}`} onClick={() => setIsRetroMode((value) => !value)} aria-label="Bật tắt hiệu ứng máy ảnh cổ" title={isRetroMode ? 'Đang bật chế độ máy ảnh cổ' : 'Đang tắt chế độ máy ảnh cổ'}>
-              {isRetroMode ? <Camera size={18} /> : <CameraOff size={18} />}
-            </button>
-
-            {photo ? (
-              <div className="viewfinder-media-wrapper">
-                <img src={photo} alt="Ảnh đã chọn" className="selected-photo" />
-                {selectedCaption && <div className="selected-caption-badge">{selectedCaption}</div>}
-                <textarea className="image-caption" autoFocus value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={120} placeholder="Thêm chú thích..." rows={1} aria-label="Chú thích ảnh" />
-              </div>
-            ) : videoUrl ? (
-              <div className="viewfinder-media-wrapper">
-                <video src={videoUrl} autoPlay loop playsInline controls className="selected-photo" />
-                {selectedCaption && <div className="selected-caption-badge">{selectedCaption}</div>}
-                <textarea className="image-caption video-caption-adjust" autoFocus value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={120} placeholder="Thêm chú thích..." rows={1} aria-label="Chú thích video" />
-              </div>
-            ) : (
-              <div className="viewfinder-media-wrapper">
-                <video ref={videoRef} autoPlay playsInline muted className="selected-photo live-camera" style={{ filter: 'brightness(1.08) contrast(0.92) saturate(1.05)', transform: `scale(${zoomLevel})`, transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                {focusPos && <div className="focus-ring" style={{ left: `${focusPos.x}px`, top: `${focusPos.y}px` }} />}
-              </div>
-            )}
-
-            <button className={`round-control flash ${flash ? 'active' : ''}`} onClick={() => { setFlash((value) => !value); setNotice('Flash giao diện chỉ là hiệu ứng mô phỏng; bật đèn thật tùy thiết bị.') }} aria-label="Bật tắt hiệu ứng flash" title="Hiệu ứng flash mô phỏng"><Zap size={18} /></button>
-            <button className="round-control zoom" onClick={handleToggleZoom} aria-label="Đổi mức zoom">{lens}</button>
-            <button className="round-control effects" onClick={() => setIsStudioOpen(true)} aria-label="Hiệu ứng"><Sparkles size={18} /></button>
-          </section>
-
-          <div className="notice-container" aria-live="polite">{notice && <p className="camera-notice">{notice}</p>}</div>
-
-          <section className="capture-controls">
-            {(photo || videoUrl) ? (
-              <button className="utility-button cancel-photo" onClick={resetCapture} aria-label="Bỏ nội dung"><X size={26} /></button>
-            ) : (
-              <button className="utility-button" onClick={() => fileInput.current?.click()} aria-label="Chọn ảnh"><ImagePlus size={26} /></button>
-            )}
-
-            {(photo || videoUrl) ? (
-              <button className="send-photo glow-effect" onClick={handleSendPhoto} aria-label="Gửi" disabled={isSending}>{isSending ? <span className="send-loading">…</span> : <Send size={26} />}</button>
-            ) : (
-              <div className="shutter-wrapper">
-                <button className={`shutter ${isRecording ? 'recording' : ''}`} onPointerDown={handleShutterPointerDown} onPointerUp={handleShutterPointerUp} onPointerCancel={handleShutterPointerCancel} onContextMenu={(event) => event.preventDefault()} aria-label="Chạm để chụp, giữ để quay" disabled={!isCameraReady || isRecording}>
-                  <span />
-                </button>
-                {isRecording && <svg className="progress-ring" width="88" height="88" aria-hidden="true"><circle stroke="#ff4757" strokeWidth="5" fill="transparent" r="40" cx="44" cy="44" style={{ strokeDasharray: 251, strokeDashoffset: 251 - (251 * recordingProgress) / 100, transition: 'stroke-dashoffset 0.05s linear' }} /></svg>}
-              </div>
-            )}
-
-            <button className="utility-button" onClick={handleSwitchCamera} aria-label="Đổi camera" disabled={Boolean(photo || videoUrl || isRecording)}><RotateCw size={26} /></button>
-          </section>
-
-          <button className="history-button" onClick={() => setIsHistoryOpen(true)}><span>Lịch sử ({history.length})</span><ChevronDown size={16} /></button>
-        </main>
-
-        <nav className="bottom-nav" aria-label="Điều hướng chính">
-          <button aria-label="Khám phá" title="Khám phá"><Grid2X2 size={22} /></button>
-          <button className="home-button" aria-label="Trang chủ" title="Trang chủ"><span className="home-outline">⌂</span></button>
-          <button className="message-button" aria-label="Tin nhắn" title="Tin nhắn"><MessageCircle size={22} /><i /></button>
-        </nav>
-
-        {isHistoryOpen && (
-          <div className="history-modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) setIsHistoryOpen(false) }}>
-            <section className="history-modal-content" role="dialog" aria-modal="true" aria-labelledby="history-title">
-              <div className="history-modal-header">
-                <h3 id="history-title">✨ Khoảnh khắc của bạn</h3>
-                <div className="history-header-actions">
-                  {history.length > 0 && <button onClick={clearHistory} title="Xóa lịch sử" aria-label="Xóa lịch sử" className="icon-btn-danger"><Trash2 size={18} /></button>}
-                  <button onClick={() => setIsHistoryOpen(false)} aria-label="Đóng lịch sử" className="icon-btn-close"><X size={20} /></button>
-                </div>
-              </div>
-              <div className="history-grid">
-                {history.length === 0 ? (
-                  <div className="no-history"><p>Chưa có khoảnh khắc nào được lưu.</p><span>Hãy chụp ảnh hoặc quay video ngay nhé!</span></div>
-                ) : history.map((item) => (
-                  <article key={item.id} className="history-item">
-                    {item.type === 'video' ? <video src={item.url} controls muted playsInline className="history-media" /> : <img src={item.url} alt={item.caption || 'Khoảnh khắc đã lưu'} className="history-media" />}
-                    {item.caption && <p className="history-caption">{item.caption}</p>}
-                    <div className="history-footer-info"><span className="history-time">{item.time}</span></div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </div>
-        )}
-
-        <CustomizeStudioModal isOpen={isStudioOpen} onClose={() => setIsStudioOpen(false)} onSelectCaption={(label) => setSelectedCaption(label)} />
-        <input ref={fileInput} type="file" accept="image/*" onChange={loadPhoto} hidden />
-        <canvas ref={canvasRef} className="hidden-canvas" aria-hidden="true" />
-      </div>
-    </div>
+    <>
+      <StudioLayout
+        account={{ user: locketUser, checking: isCheckingAccount, onOpen: openAccount, onProfileUpdate: handleProfileUpdate }}
+        capture={{
+          photo, videoUrl, videoThumbnail, videoRef, mobileVideoRef, zoomLevel, lens, flash, isRetroMode, isRecording, recordingProgress, focusPos, photoEffect, photoEffects: PHOTO_EFFECTS,
+          isReady: isCameraReady,
+          onFocus: handleTapToFocus,
+          onChoose: () => fileInput.current?.click(),
+          onSwitch: handleSwitchCamera,
+          onZoom: handleToggleZoom,
+          onToggleFlash: () => { setFlash((value) => !value); setNotice('Flash là hiệu ứng giao diện; đèn camera thật tùy thiết bị.') },
+          onChangeLook: setIsRetroMode,
+          onReset: resetCapture,
+          onChangeEffect: changePhotoEffect,
+          onShutterPointerDown: handleShutterPointerDown,
+          onShutterPointerUp: handleShutterPointerUp,
+          onShutterPointerCancel: handleShutterPointerCancel,
+          onKeyboardCapture: () => isRecording ? stopRecording() : takePhoto(),
+        }}
+        composer={{
+          caption, selectedCaption, captionTone: selectedCaptionTone, sending: isSending,
+          onCaptionChange: setCaption,
+          onClearPreset: () => { setSelectedCaption(''); setSelectedCaptionTone('yellow') },
+          onOpenPresets: () => setIsStudioOpen(true),
+          onSend: handleSendPhoto,
+        }}
+        audience={{
+          open: isAudienceOpen,
+          mode: audienceMode,
+          friends,
+          friendsLoading: isFriendsLoading,
+          excludedFriendIds,
+          onOpen: () => setIsAudienceOpen(true),
+          onClose: () => setIsAudienceOpen(false),
+          onModeChange: setAudienceMode,
+          onToggleFriend: (uid) => setExcludedFriendIds((current) => current.includes(uid) ? current.filter((id) => id !== uid) : [...current, uid]),
+        }}
+        remoteMoments={remoteMoments}
+        onRefreshMoments={refreshLocketMoments}
+        conversations={conversations}
+        conversationMessages={conversationMessages}
+        onLoadConversationMessages={loadConversationMessages}
+        library={{
+          items: history, open: isHistoryOpen,
+          onOpen: () => setIsHistoryOpen(true),
+          onClose: () => setIsHistoryOpen(false),
+          onClear: clearHistory,
+          onReuse: reuseHistoryRecord,
+        }}
+        notice={notice}
+        onDismissNotice={() => setNotice('')}
+      />
+      <LocketAccountModal open={isAccountOpen} onClose={() => setIsAccountOpen(false)} user={locketUser} onUserChange={(user) => { setLocketUser(user); setNotice(user ? 'Đã kết nối Locket. Chọn ảnh và bấm gửi để đăng.' : 'Đã ngắt kết nối Locket.') }} />
+      <LocketProfileModal open={isProfileOpen} user={locketUser} onClose={() => setIsProfileOpen(false)} onManage={() => setIsAccountOpen(true)} />
+      <CustomizeStudioModal isOpen={isStudioOpen} onClose={() => setIsStudioOpen(false)} onSelectCaption={(label, tone) => { setSelectedCaption(label); setSelectedCaptionTone(tone || 'yellow'); setCaption('') }} />
+      <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/x-m4v" onChange={loadPhoto} hidden />
+      <canvas ref={canvasRef} className="hidden-canvas" aria-hidden="true" />
+    </>
   )
 }

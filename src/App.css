@@ -73,6 +73,20 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   flex-shrink: 0;
 }
 .friends-pill svg { color: #9dacbe; }
+.friends-pill { cursor: pointer; max-width: calc(100% - 32px); font-family: inherit; }
+.friends-pill strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.locket-account-modal { width: min(360px, calc(100% - 32px)); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid #2d3a50; border-radius: 20px; color: #edf3ff; background: #111a2d; }
+.locket-account-modal::backdrop { background: #000b; backdrop-filter: blur(6px); }
+.locket-account-content { padding: 22px; }
+.locket-account-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.locket-account-heading h2 { font-size: 19px; margin: 0; }
+.locket-account-content p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.locket-account-content label { display: block; font-size: 13px; margin: 14px 0 6px; }
+.locket-account-content input { width: 100%; padding: 11px 12px; border: 1px solid #34435c; border-radius: 10px; background: #020817; color: #edf3ff; font: inherit; }
+.locket-account-content input:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+.locket-account-content .locket-account-hint { color: #a7b5ca; font-size: 12px; }
+.locket-account-submit { width: 100%; margin-top: 10px; padding: 12px; border: 0; border-radius: 12px; background: var(--yellow); color: var(--night); font-weight: 700; cursor: pointer; }
+.locket-account-error { color: #ff9da5; }
 .camera-area {
   flex: 1;
   min-height: 0;

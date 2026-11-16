@@ -1,2 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
-:root{font-family:Manrope,sans-serif;color:#f3f5f4;background:#0b0d12;font-synthesis:none}*{box-sizing:border-box}body{margin:0;min-width:320px;background:#0b0d12}button,a{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@1,500;1,600&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'Manrope', sans-serif;
+  color: #2a2c28;
+  background: #f8f7f3;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; }
+button, input, textarea { font: inherit; }
+button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+a { color: inherit; text-decoration: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #cc9b30; outline-offset: 4px; }
+button:disabled { opacity: .45; }
+button, input, textarea { color: inherit; }
+::selection { color: #26271e; background: #ffe69a; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
