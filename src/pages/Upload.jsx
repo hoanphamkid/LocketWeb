@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadPhoto } from '../services/api';
+import { IMAGE_MAX_BYTES } from '../services/media';
 import { Loader2, ImagePlus, X } from 'lucide-react';
 import '../App.css';
 
@@ -20,8 +21,8 @@ export default function Upload() {
       setError('Định dạng ảnh không hợp lệ. Chỉ chấp nhận JPEG, PNG, WebP.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Kích thước ảnh không được vượt quá 5 MB.');
+    if (file.size > IMAGE_MAX_BYTES) {
+      setError('Kích thước ảnh không được vượt quá 20 MB.');
       return;
     }
     setError('');
