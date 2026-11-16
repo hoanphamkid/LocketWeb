@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Check, CircleUserRound, Clock3, LoaderCircle, Mail, Phone, ShieldCheck, UserRound, X } from 'lucide-react'
 import { getLocketProfile } from '../services/locket'
 import { LocketMark } from './StudioLayout'
+import GoldBadge from './GoldBadge'
 
 function formatValue(value) {
   if (!value) return 'Chưa cung cấp'
@@ -62,7 +63,7 @@ export default function LocketProfileModal({ open, user, onClose, onManage }) {
       </div>
       <div className="profile-hero">
         <span className="profile-avatar">{data.avatarUrl ? <img src={data.avatarUrl} alt="" /> : initials(data)}</span>
-        <div><h2 id="profile-title">{data.displayName || 'Tài khoản Locket'}</h2><p>{data.email || data.phoneNumber || 'Tài khoản đã kết nối'}</p><span className="profile-connected"><Check size={13} strokeWidth={3} /> Đã kết nối Locket</span></div>
+        <div><h2 id="profile-title">{data.displayName || 'Tài khoản Locket'}<GoldBadge badge={data.badge} /></h2><p>{data.email || data.phoneNumber || 'Tài khoản đã kết nối'}</p><span className="profile-connected"><Check size={13} strokeWidth={3} /> Đã kết nối Locket</span></div>
       </div>
       <div className="profile-section-heading"><span>THÔNG TIN LOCKET</span><ShieldCheck size={16} /></div>
       {loading ? <div className="profile-loading"><LoaderCircle size={20} className="spin" /> Đang tải thông tin hồ sơ…</div> : (

@@ -7,7 +7,7 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const auth = firebaseApp ? getAuth(firebaseApp) : null;
-  const [user, setUser] = useState(() => auth ? null : { uid: 'demo-user', email: 'demo@locket.local' });
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(Boolean(auth));
 
   useEffect(() => {

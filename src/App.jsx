@@ -3,7 +3,8 @@ import CustomizeStudioModal from './components/CustomizeStudioModal'
 import LocketAccountModal from './components/LocketAccountModal'
 import LocketProfileModal from './components/LocketProfileModal'
 import StudioLayout from './components/StudioLayout'
-import { getLocketConversations, getLocketFriends, getLocketMessages, getLocketMoments, getLocketSession, postLocketPhoto, postLocketVideo, updateLocketProfile } from './services/locket'
+import { getLocketConversations, getLocketFriends, getLocketMemories, getLocketMessages, getLocketMoments, getLocketProfile, getLocketSession, postLocketPhoto, postLocketVideo, updateLocketProfile } from './services/locket'
+import { validateMediaSize } from './services/media'
 import './studio.css'
 
 const DB_NAME = 'locket-local-db'
@@ -158,6 +159,7 @@ export default function App() {
   const pressStartedRecordingRef = useRef(false)
   const historyUrlsRef = useRef([])
   const originalPhotoRef = useRef(null)
+  const accountRequestVersionRef = useRef(0)
 
   const [facingMode, setFacingMode] = useState('user')
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -189,9 +191,11 @@ export default function App() {
   const [excludedFriendIds, setExcludedFriendIds] = useState([])
   const [friends, setFriends] = useState([])
   const [remoteMoments, setRemoteMoments] = useState([])
+  const [memoryRecords, setMemoryRecords] = useState({ uid: null, items: [] })
   const [conversations, setConversations] = useState([])
   const [conversationMessages, setConversationMessages] = useState({})
   const [isFriendsLoading, setIsFriendsLoading] = useState(false)
+  const [dataStatus, setDataStatus] = useState({})
   const [isAudienceOpen, setIsAudienceOpen] = useState(false)
 
   const openAccount = () => {
@@ -200,42 +204,68 @@ export default function App() {
   }
 
   const handleProfileUpdate = useCallback(async (patch) => {
-    const { data } = await updateLocketProfile(patch)
-    setLocketUser((current) => ({ ...current, ...(data || {}) }))
-    return data
-  }, [])
+    const uid = locketUser?.uid
+    if (!uid) throw new Error('Hãy đăng nhập Locket để cập nhật hồ sơ.')
+    try {
+      const { data } = await updateLocketProfile(patch)
+      if (!data || data.uid !== uid) throw new Error('Locket chưa xác nhận hồ sơ tài khoản. Hãy tải lại trang.')
+      setLocketUser((current) => current?.uid === uid ? { ...current, ...data } : current)
+      return data
+    } catch (error) {
+      if (error.status === 401) setLocketUser(null)
+      throw error
+    }
+  }, [locketUser?.uid])
 
   useEffect(() => {
     let cancelled = false
     getLocketSession()
       .then(({ user }) => { if (!cancelled) setLocketUser(user) })
-      .catch(() => { /* The account form reports connection errors on login. */ })
+      .catch((error) => { if (!cancelled) setNotice(error.message || 'Không kiểm tra được phiên Locket. Vui lòng thử đăng nhập lại.') })
       .finally(() => { if (!cancelled) setIsCheckingAccount(false) })
     return () => { cancelled = true }
   }, [])
 
+  const accountUid = locketUser?.uid
+  const memories = memoryRecords.uid === accountUid ? memoryRecords.items : []
+
   useEffect(() => {
     let cancelled = false
-    if (!locketUser) {
-      setFriends([])
-      setRemoteMoments([])
-      setConversations([])
-      setConversationMessages({})
-      setExcludedFriendIds([])
+    accountRequestVersionRef.current += 1
+    setFriends([])
+    setRemoteMoments([])
+    setMemoryRecords({ uid: null, items: [] })
+    setConversations([])
+    setConversationMessages({})
+    setExcludedFriendIds([])
+    setDataStatus({})
+    if (!accountUid) {
       setIsFriendsLoading(false)
       return undefined
     }
     setIsFriendsLoading(true)
-    Promise.allSettled([getLocketFriends(), getLocketMoments(), getLocketConversations()])
-      .then(([friendsResult, momentsResult, conversationsResult]) => {
+    const load = async (key, fetchData, apply, isList = true) => {
+      try {
+        const { data } = await fetchData()
+        if (isList && !Array.isArray(data)) throw new Error('Locket trả về dữ liệu không hợp lệ. Vui lòng thử lại.')
         if (cancelled) return
-        setFriends(friendsResult.status === 'fulfilled' && Array.isArray(friendsResult.value.data) ? friendsResult.value.data : [])
-        setRemoteMoments(momentsResult.status === 'fulfilled' && Array.isArray(momentsResult.value.data) ? momentsResult.value.data : [])
-        setConversations(conversationsResult.status === 'fulfilled' && Array.isArray(conversationsResult.value.data) ? conversationsResult.value.data : [])
-      })
-      .finally(() => { if (!cancelled) setIsFriendsLoading(false) })
-    return () => { cancelled = true }
-  }, [locketUser])
+        apply(data)
+        setDataStatus((current) => ({ ...current, [key]: { loaded: true } }))
+      } catch (error) {
+        if (cancelled) return
+        setDataStatus((current) => ({ ...current, [key]: { error: error.message } }))
+        if (error.status === 401) setLocketUser(null)
+      } finally {
+        if (!cancelled && key === 'friends') setIsFriendsLoading(false)
+      }
+    }
+    void load('profile', getLocketProfile, (data) => setLocketUser((current) => current?.uid === accountUid ? { ...current, ...data } : current), false)
+    void load('friends', getLocketFriends, setFriends)
+    void load('moments', getLocketMoments, setRemoteMoments)
+    void load('memories', getLocketMemories, (data) => setMemoryRecords({ uid: accountUid, items: data }))
+    void load('conversations', getLocketConversations, setConversations)
+    return () => { cancelled = true; accountRequestVersionRef.current += 1 }
+  }, [accountUid])
 
   const loadConversationMessages = useCallback(async (conversationId) => {
     if (!conversationId || conversationMessages[conversationId]) return conversationMessages[conversationId] || []
@@ -250,12 +280,41 @@ export default function App() {
   }, [conversationMessages])
 
   const refreshLocketMoments = useCallback(async () => {
-    if (!locketUser) return []
-    const { data } = await getLocketMoments()
-    const next = Array.isArray(data) ? data : []
-    setRemoteMoments(next)
-    return next
-  }, [locketUser])
+    if (!accountUid) return []
+    const version = accountRequestVersionRef.current
+    try {
+      const { data } = await getLocketMoments()
+      if (!Array.isArray(data)) throw new Error('Locket trả về dữ liệu khoảnh khắc không hợp lệ.')
+      if (version !== accountRequestVersionRef.current) return []
+      setRemoteMoments(data)
+      setDataStatus((current) => ({ ...current, moments: { loaded: true } }))
+      return data
+    } catch (error) {
+      if (version !== accountRequestVersionRef.current) return []
+      setDataStatus((current) => ({ ...current, moments: { error: error.message } }))
+      if (error.status === 401) setLocketUser(null)
+      throw error
+    }
+  }, [accountUid])
+
+  const refreshLocketMemories = useCallback(async () => {
+    if (!accountUid) return []
+    const version = accountRequestVersionRef.current
+    setDataStatus((current) => ({ ...current, memories: { ...current.memories, error: null, loading: true } }))
+    try {
+      const { data } = await getLocketMemories()
+      if (!Array.isArray(data)) throw new Error('Locket trả về dữ liệu kỷ niệm không hợp lệ.')
+      if (version !== accountRequestVersionRef.current) return []
+      setMemoryRecords({ uid: accountUid, items: data })
+      setDataStatus((current) => ({ ...current, memories: { loaded: true, loading: false } }))
+      return data
+    } catch (error) {
+      if (version !== accountRequestVersionRef.current) return []
+      setDataStatus((current) => ({ ...current, memories: { ...current.memories, loading: false, error: error.message } }))
+      if (error.status === 401) setLocketUser(null)
+      throw error
+    }
+  }, [accountUid])
 
   // Load persisted media from IndexedDB. Object URLs are recreated on each page load.
   useEffect(() => {
@@ -628,7 +687,7 @@ export default function App() {
       setCaption('')
       setSelectedCaption('')
       setSelectedCaptionTone('yellow')
-      getLocketMoments().then(({ data }) => { if (Array.isArray(data)) setRemoteMoments(data) }).catch(() => {})
+      void Promise.allSettled([refreshLocketMoments(), refreshLocketMemories()])
       setNotice(`Đã đăng ${photo ? 'ảnh' : 'video'} lên Locket! Bạn có thể kiểm tra trong ứng dụng trên điện thoại.`)
     } catch (error) {
       if (error.status === 401) {
@@ -651,12 +710,8 @@ export default function App() {
       setNotice('Vui lòng chọn ảnh JPEG, PNG, WebP hoặc video MP4/MOV/WebM.')
       return
     }
-    const maxSize = isVideo ? 10 * 1024 * 1024 : 5 * 1024 * 1024
-    if (file.size > maxSize) {
-      setNotice(`${isVideo ? 'Video' : 'Ảnh'} không được vượt quá ${isVideo ? '10' : '5'} MB.`)
-      return
-    }
     try {
+      validateMediaSize(file, isVideo ? 'video' : 'image')
       if (isVideo) {
         const thumbnail = await createVideoThumbnail(file)
         const url = URL.createObjectURL(file)
@@ -686,7 +741,7 @@ export default function App() {
       await addToHistory('photo', file)
     } catch (error) {
       console.error('Không thể đọc nội dung album:', error)
-      setNotice('Không thể mở nội dung này. Vui lòng chọn tệp khác.')
+      setNotice(error.message || 'Không thể mở nội dung này. Vui lòng chọn tệp khác.')
     }
   }
 
@@ -772,7 +827,8 @@ export default function App() {
   return (
     <>
       <StudioLayout
-        account={{ user: locketUser, checking: isCheckingAccount, onOpen: openAccount, onProfileUpdate: handleProfileUpdate }}
+        account={{ user: locketUser, checking: isCheckingAccount, onOpen: openAccount, onProfileUpdate: handleProfileUpdate,
+          dataStatus, friendCount: dataStatus.friends?.loaded ? friends.length : null }}
         capture={{
           photo, videoUrl, videoThumbnail, videoRef, mobileVideoRef, zoomLevel, lens, flash, isRetroMode, isRecording, recordingProgress, focusPos, photoEffect, photoEffects: PHOTO_EFFECTS,
           isReady: isCameraReady,
@@ -808,6 +864,8 @@ export default function App() {
           onToggleFriend: (uid) => setExcludedFriendIds((current) => current.includes(uid) ? current.filter((id) => id !== uid) : [...current, uid]),
         }}
         remoteMoments={remoteMoments}
+        memories={memories}
+        onRefreshMemories={refreshLocketMemories}
         onRefreshMoments={refreshLocketMoments}
         conversations={conversations}
         conversationMessages={conversationMessages}
@@ -823,7 +881,7 @@ export default function App() {
         onDismissNotice={() => setNotice('')}
       />
       <LocketAccountModal open={isAccountOpen} onClose={() => setIsAccountOpen(false)} user={locketUser} onUserChange={(user) => { setLocketUser(user); setNotice(user ? 'Đã kết nối Locket. Chọn ảnh và bấm gửi để đăng.' : 'Đã ngắt kết nối Locket.') }} />
-      <LocketProfileModal open={isProfileOpen} user={locketUser} onClose={() => setIsProfileOpen(false)} onManage={() => setIsAccountOpen(true)} />
+      <LocketProfileModal key={accountUid || 'guest'} open={isProfileOpen} user={locketUser} onClose={() => setIsProfileOpen(false)} onManage={() => setIsAccountOpen(true)} />
       <CustomizeStudioModal isOpen={isStudioOpen} onClose={() => setIsStudioOpen(false)} onSelectCaption={(label, tone) => { setSelectedCaption(label); setSelectedCaptionTone(tone || 'yellow'); setCaption('') }} />
       <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/x-m4v" onChange={loadPhoto} hidden />
       <canvas ref={canvasRef} className="hidden-canvas" aria-hidden="true" />

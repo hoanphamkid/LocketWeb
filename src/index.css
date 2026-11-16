@@ -9,9 +9,10 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; }
+* { box-sizing: border-box; touch-action: pan-x pan-y; }
+html { scroll-behavior: smooth; width: 100%; overflow-x: clip; touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; width: 100%; min-width: 0; overflow-x: clip; }
+#root { width: 100%; min-height: 100dvh; }
 button, input, textarea { font: inherit; }
 button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
